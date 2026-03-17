@@ -83,6 +83,30 @@ build-windows.bat
 Output:
 - `dist\video-caption-studio.exe`
 
+## Automated Windows EXE Releases (GitHub Actions)
+
+This repo includes:
+- `.github/workflows/release-windows-exe.yml`
+
+It will:
+- run on `workflow_dispatch` (manual trigger) and tag pushes matching `v*`
+- build `video-caption-studio.exe` on `windows-latest` with Python 3.11
+- upload the EXE as a workflow artifact
+- on tag pushes (`v*`), create/update the GitHub Release and attach the EXE asset
+
+### Create a release tag
+
+```bash
+git tag v0.1.0
+git push origin v0.1.0
+```
+
+### Download the EXE
+
+After the workflow finishes, download from either:
+- **GitHub Releases** page for the tagged version (asset: `video-caption-studio.exe`)
+- **Actions run artifacts** (`video-caption-studio-windows-exe`) for manual runs
+
 ## Testing / Basic Checks
 
 ```bash

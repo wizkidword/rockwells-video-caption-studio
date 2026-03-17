@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import tkinter as tk
+from pathlib import Path
 from tkinter import filedialog, messagebox, ttk
 
 from .analyze import extract_transcript_placeholder, extract_visual_signals
@@ -10,10 +11,14 @@ from .ingest import IngestError, collect_metadata
 
 
 class VideoCaptionStudioApp:
+    APP_NAME = "Video Caption Studio"
+    WINDOW_TITLE = "Video Caption Studio · Offline Caption Generator"
+
     def __init__(self, root: tk.Tk) -> None:
         self.root = root
-        self.root.title("Video Caption Studio")
+        self.root.title(self.WINDOW_TITLE)
         self.root.geometry("880x680")
+        self._apply_optional_icon()
 
         self.video_path_var = tk.StringVar()
         self.platform_var = tk.StringVar(value="tiktok")
@@ -21,9 +26,42 @@ class VideoCaptionStudioApp:
 
         self._build_ui()
 
+    def _apply_optional_icon(self) -> None:
+        root_dir = Path(__file__).resolve().parents[2]
+        ico_candidates = [
+            root_dir / "assets" / "app.ico",
+            root_dir / "assets" / "icon.ico",
+            root_dir / "icon.ico",
+        ]
+        png_candidates = [
+            root_dir / "assets" / "app.png",
+            root_dir / "assets" / "icon.png",
+            root_dir / "icon.png",
+        ]
+
+        for ico_path in ico_candidates:
+            if ico_path.exists():
+                try:
+                    self.root.iconbitmap(default=str(ico_path))
+                    return
+                except Exception:
+                    pass
+
+        for png_path in png_candidates:
+            if png_path.exists():
+                try:
+                    icon_image = tk.PhotoImage(file=str(png_path))
+                    self.root.iconphoto(True, icon_image)
+                    self.root._icon_image_ref = icon_image  # type: ignore[attr-defined]
+                    return
+                except Exception:
+                    pass
+
     def _build_ui(self) -> None:
         frame = ttk.Frame(self.root, padding=12)
         frame.pack(fill=tk.BOTH, expand=True)
+
+        ttk.Label(frame, text=self.APP_NAME, font=("Segoe UI", 16, "bold")).pack(anchor="w", pady=(0, 8))
 
         top = ttk.LabelFrame(frame, text="Input", padding=10)
         top.pack(fill=tk.X)
