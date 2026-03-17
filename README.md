@@ -6,7 +6,7 @@ Current MVP targets Windows-friendly use and keeps the architecture clean for:
 - future **online AI providers** (provider-pluggable compose layer)
 - future **batch processing** (analysis/compose layers already decoupled from UI)
 
-## Features (v1.1.3)
+## Features (v1.1.4)
 
 - Local single-video workflow
 - Platform presets:
@@ -20,7 +20,7 @@ Current MVP targets Windows-friendly use and keeps the architecture clean for:
 - Analyze layer:
   - frame sampling plan helper
   - OpenCV visual analysis (when available)
-  - optional local transcript extraction via `faster-whisper`
+  - local transcript extraction via `faster-whisper` (CPU runtime by default; no CUDA required)
   - structured analysis report with real source attribution
 - Compose layer:
   - provider interface contract
@@ -79,9 +79,9 @@ The script will:
 3. install requirements
 4. launch the app
 
-## v1.1.3 Strict Analysis Mode + Runtime Transcript Diagnostics
+## v1.1.4 Strict Analysis Mode + Runtime Transcript Diagnostics
 
-v1.1.3 keeps strict, grounded analysis as the default and adds runtime transcript prechecks with actionable failure details.
+v1.1.4 keeps strict, grounded analysis as the default and adds runtime transcript prechecks with actionable failure details.
 
 - Generate will **fail** with actionable guidance if required analysis cannot run.
 - Strict mode requires:
@@ -96,7 +96,7 @@ Status log now reports what actually ran, for example:
 - `metadata=ffprobe, visual=opencv, transcript=whisper`
 - warnings/errors from runtime dependency checks
 
-## Quick setup troubleshooting (v1.1.3)
+## Quick setup troubleshooting (v1.1.4)
 
 In the app, click **Check Dependencies**.
 
@@ -117,7 +117,7 @@ If a dependency is missing, use one-click copy buttons for Windows install comma
 
 After installing, reopen your terminal/app so PATH/package changes are detected.
 
-### Transcript runtime troubleshooting (v1.1.3)
+### Transcript runtime troubleshooting (v1.1.4)
 
 If **Generate** fails strict mode while diagnostics show faster-whisper is installed, use **Test Transcript** on the same file.
 
@@ -130,8 +130,9 @@ Common causes and fixes:
 - **Missing runtime libraries / DLL / shared objects**
   - In source mode: reinstall into `.venv` and relaunch app.
   - In EXE mode: rebuild EXE with dependencies bundled (do not patch with system `py -m pip`).
-- **Unsupported GPU/CUDA path**
-  - Use CPU-compatible runtime setup or install matching CUDA/cuDNN stack.
+- **CUDA/GPU runtime errors** (for example: `cublas64_12.dll` missing)
+  - The app already forces CPU runtime by default; CUDA is not required.
+  - Reinstall/repair `faster-whisper` + `ctranslate2` in the project venv, then relaunch.
 - **Audio decode/ffmpeg path issues**
   - Verify the selected file plays normally and contains a valid audio stream.
   - Re-export/remux the video if decode errors persist.
@@ -140,7 +141,7 @@ Strict mode behavior:
 - If `ffprobe` confirms **no audio stream**, transcript is not required.
 - If audio is present/unknown and transcript runtime fails, strict mode fails with the specific transcript reason + details.
 
-## EXE vs source mode dependencies (v1.1.3)
+## EXE vs source mode dependencies (v1.1.4)
 
 The app now reports dependency presence as one of:
 - `bundled` (inside packaged EXE)

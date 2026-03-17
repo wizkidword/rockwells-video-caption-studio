@@ -39,6 +39,13 @@ def test_format_diagnostics_report_includes_presence_sections():
     assert "mode note" in report
 
 
+def test_diagnostics_mentions_cpu_default_no_cuda_requirement():
+    result = run_dependency_diagnostics()
+    assert "CPU-first" in result.strict_requirements
+    whisper_detail = next(item.detail for item in result.statuses if item.key == "faster_whisper")
+    assert "CUDA not required" in whisper_detail
+
+
 def test_windows_install_commands_source_mode(monkeypatch):
     monkeypatch.setattr(diagnostics, "runtime_mode", lambda: "source")
     commands = windows_install_commands()

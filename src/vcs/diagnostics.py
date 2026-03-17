@@ -81,6 +81,7 @@ def run_dependency_diagnostics() -> DependencyDiagnostics:
             required_for_strict=False,
             detail=(
                 "Needed for transcript extraction when audio exists or audio status is unknown. "
+                "Transcription runs on CPU by default (CUDA not required). "
                 "Strict mode can still pass without it only when ffprobe confirms no audio track."
             ),
             presence=whisper_presence,
@@ -98,7 +99,8 @@ def run_dependency_diagnostics() -> DependencyDiagnostics:
         statuses=statuses,
         strict_requirements=(
             "Strict mode requires ffprobe + OpenCV, and requires faster-whisper when audio is present "
-            "or unknown. If ffprobe confirms no audio track, transcript is not required."
+            "or unknown. Transcript runtime is CPU-first by default (no CUDA dependency). "
+            "If ffprobe confirms no audio track, transcript is not required."
         ),
         audio_note=(
             "Audio behavior note: transcript checks depend on ffprobe metadata. "
@@ -109,7 +111,7 @@ def run_dependency_diagnostics() -> DependencyDiagnostics:
 
 
 def format_diagnostics_report(diagnostics: DependencyDiagnostics) -> str:
-    lines: List[str] = ["Dependency Diagnostics (v1.1.3)"]
+    lines: List[str] = ["Dependency Diagnostics (v1.1.4)"]
 
     for status in diagnostics.statuses:
         state = "PASS" if status.installed else "FAIL"

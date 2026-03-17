@@ -73,10 +73,13 @@ def _truncate_detail(message: str, max_len: int = 380) -> str:
 
 def _actionable_transcript_message(detail: str) -> str:
     text = detail.lower()
+    if any(k in text for k in ["cuda", "cudnn", "gpu", "compute capability", "cublas"]):
+        return (
+            "Transcript runtime failed inside faster-whisper runtime. "
+            "Transcription already runs on CPU by default; CUDA is not required."
+        )
     if any(k in text for k in ["dll", "lib", "not found", "cannot open shared object"]):
         return "Transcript runtime failed: required whisper/runtime libraries were not found."
-    if any(k in text for k in ["cuda", "cudnn", "gpu", "compute capability"]):
-        return "Transcript runtime failed: unsupported/misconfigured GPU path. Try CPU mode or install matching CUDA/cuDNN."
     if any(k in text for k in ["model", "download", "permission", "cache"]):
         return "Transcript runtime failed while loading whisper model files."
     if any(k in text for k in ["ffmpeg", "decode", "invalid data", "moov atom", "could not open"]):
@@ -92,6 +95,35 @@ def opencv_available() -> bool:
 
 def whisper_available() -> bool:
     return WhisperModel is not None
+
+
+CPU_COMPUTE_FALLBACK_CHAIN = ("int8", "int8_float32", "float32")
+
+
+def _transcribe_with_cpu_fallback(video_path: str, precheck: bool = False) -> tuple[bool, str, str, str]:
+    if WhisperModel is None:
+        detail = "faster-whisper import unavailable in current runtime"
+        return False, "", "faster-whisper not installed; transcript extraction skipped.", detail
+
+    attempt_errors: List[str] = []
+
+    for compute_type in CPU_COMPUTE_FALLBACK_CHAIN:
+        try:
+            model = WhisperModel("tiny", device="cpu", compute_type=compute_type)
+            transcribe_kwargs = {"vad_filter": True, "beam_size": 1} if precheck else {"vad_filter": True}
+            segments, _ = model.transcribe(video_path, **transcribe_kwargs)
+            if precheck:
+                _ = next(iter(segments), None)
+                return True, "", "", ""
+
+            text = " ".join(segment.text.strip() for segment in segments if segment.text.strip()).strip()
+            return True, text, "", ""
+        except Exception as exc:
+            detail = _truncate_detail(str(exc))
+            attempt_errors.append(f"{compute_type}: {detail}")
+
+    combined = " | ".join(attempt_errors)
+    return False, "", _actionable_transcript_message(combined), combined
 
 
 def extract_visual_signals(video_path: str, max_samples: int = 8) -> AnalysisResult:
@@ -153,30 +185,17 @@ def transcript_runtime_precheck(video_path: str) -> Tuple[bool, str, str]:
         detail = "faster-whisper import unavailable in current runtime"
         return False, "Transcript precheck failed: faster-whisper is not installed/available.", detail
 
-    try:
-        model = WhisperModel("tiny", compute_type="int8")
-        segments, _ = model.transcribe(video_path, vad_filter=True, beam_size=1)
-        # Consume at most one segment to force real runtime path without full transcription.
-        _ = next(iter(segments), None)
-        return True, "Transcript precheck passed.", ""
-    except Exception as exc:
-        detail = _truncate_detail(str(exc))
-        return False, _actionable_transcript_message(detail), detail
+    ok, _text, err_message, detail = _transcribe_with_cpu_fallback(video_path, precheck=True)
+    if ok:
+        return True, "Transcript precheck passed (CPU runtime).", ""
+    return False, err_message, detail
 
 
 def extract_transcript_whisper(video_path: str) -> tuple[str, Optional[str], Optional[str]]:
-    if WhisperModel is None:
-        detail = "faster-whisper import unavailable in current runtime"
-        return "", "faster-whisper not installed; transcript extraction skipped.", detail
-
-    try:
-        model = WhisperModel("tiny", compute_type="int8")
-        segments, _ = model.transcribe(video_path, vad_filter=True)
-        text = " ".join(segment.text.strip() for segment in segments if segment.text.strip())
-        return text.strip(), None, None
-    except Exception as exc:
-        detail = _truncate_detail(str(exc))
-        return "", _actionable_transcript_message(detail), detail
+    ok, text, err_message, detail = _transcribe_with_cpu_fallback(video_path, precheck=False)
+    if ok:
+        return text, None, None
+    return "", err_message, detail
 
 
 def _install_guidance() -> str:

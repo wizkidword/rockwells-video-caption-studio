@@ -1,7 +1,14 @@
 import pytest
 
 from src.vcs import analyze
-from src.vcs.analyze import AnalysisContractError, AnalysisResult, build_frame_sampling_plan, run_analysis
+from src.vcs.analyze import (
+    AnalysisContractError,
+    AnalysisResult,
+    build_frame_sampling_plan,
+    extract_transcript_whisper,
+    run_analysis,
+    transcript_runtime_precheck,
+)
 from src.vcs.ingest import VideoMetadata
 
 
@@ -111,3 +118,52 @@ def test_fallback_mode_reports_runtime_failure_detail(monkeypatch):
     assert result.report.transcript_runtime_ok is False
     assert "decoding audio" in result.report.transcript_runtime_message
     assert result.report.transcript_error_detail == "ffmpeg decode error"
+
+
+def test_transcript_runtime_forces_cpu_and_fallback(monkeypatch):
+    calls = []
+
+    class FakeSegment:
+        def __init__(self, text: str):
+            self.text = text
+
+    class FakeModel:
+        def __init__(self, _size: str, device: str, compute_type: str):
+            calls.append((device, compute_type))
+            if compute_type == "int8":
+                raise RuntimeError("int8 compute type not supported on this cpu")
+
+        def transcribe(self, *_args, **_kwargs):
+            return iter([FakeSegment(" hello "), FakeSegment("world")]), None
+
+    monkeypatch.setattr(analyze, "WhisperModel", FakeModel)
+
+    ok, msg, detail = transcript_runtime_precheck("/tmp/fake.mp4")
+    assert ok is True
+    assert "CPU runtime" in msg
+    assert detail == ""
+
+    text, err, err_detail = extract_transcript_whisper("/tmp/fake.mp4")
+    assert text == "hello world"
+    assert err is None
+    assert err_detail is None
+
+    assert calls[0] == ("cpu", "int8")
+    assert calls[1] == ("cpu", "int8_float32")
+
+
+def test_transcript_runtime_fallback_detail_mentions_cuda_not_required(monkeypatch):
+    class FakeModel:
+        def __init__(self, _size: str, device: str, compute_type: str):
+            assert device == "cpu"
+
+        def transcribe(self, *_args, **_kwargs):
+            raise RuntimeError("Could not load cublas64_12.dll")
+
+    monkeypatch.setattr(analyze, "WhisperModel", FakeModel)
+
+    ok, msg, detail = transcript_runtime_precheck("/tmp/fake.mp4")
+    assert ok is False
+    assert "CUDA is not required" in msg
+    assert "int8:" in detail
+    assert "float32:" in detail
